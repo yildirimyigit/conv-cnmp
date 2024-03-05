@@ -1,6 +1,6 @@
 
 import sys
-from conv_cnmp import ConvCNMP
+from model.conv_cnmp import ConvCNMP
 import torch
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
