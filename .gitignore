@@ -1,6 +1,5 @@
 # Yigit
-env_*
-traj_*
+raw*
 
 
 # Byte-compiled / optimized / DLL files
