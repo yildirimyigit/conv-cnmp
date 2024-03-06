@@ -199,8 +199,11 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         self.decoder = nn.Sequential(*decoder_sequence)
 
     def forward(self, conv_obs, cnmp_obs, cnmp_tar):
-        conv_result = self.conv(conv_obs)
-        total_obs = torch.cat((cnmp_obs, conv_result), dim=-1)
+        # conv_obs: (batch_size, 3, 64, 64)
+        conv_result = self.conv(conv_obs) # (batch_size, linear_output_sizes[-1])
+        conv_result_rep = conv_result.unsqueeze(1).repeat(1, cnmp_obs.shape[1], 1)  # conv_result is repeated to match cnmp_obs. we append same conv_result to each cnmp_obs
+
+        total_obs = torch.cat((cnmp_obs, conv_result_rep), dim=-1)
         
         # cnmp_obs: (batch_size, n_o (<cnmp_max_obs), input_dim+output_dim)
         # cnmp_tar: (batch_size, n_t (<cnmp_max_tar), input_dim)
@@ -209,14 +212,14 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         repeated_encoded_rep = torch.repeat_interleave(encoded_rep, cnmp_tar.shape[1], dim=1)  # each encoded_rep is repeated to match cnmp_tar
         rep_tar = torch.cat([repeated_encoded_rep, cnmp_tar], dim=-1)
         
-        pred = self.decoder(rep_tar)  # (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)        
-        return pred, encoded_rep
+        pred = self.decoder(rep_tar)  # (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
+        return pred
 
     def loss(self, pred, real):
         # pred: (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
         # real: (batch_size, n_t (<cnmp_max_tar), cnmp_output_dim)
-        pred_mean = pred[:, :, :self.output_dim]
-        pred_std = torch.nn.functional.softplus(torch.exp(pred[:, :, self.output_dim:]))  # predicted value is log_std. In comb. with softplus to ensure positivity
+        pred_mean = pred[:, :, :self.cnmp_output_dim]
+        pred_std = torch.nn.functional.softplus(torch.exp(pred[:, :, self.cnmp_output_dim:]))  # predicted value is log_std. In comb. with softplus to ensure positivity
 
         pred_dist = torch.distributions.Normal(pred_mean, pred_std)
 

@@ -1,6 +1,7 @@
 # Yigit
-raw*
-
+raw/
+output/
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
