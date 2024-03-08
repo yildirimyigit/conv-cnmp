@@ -33,7 +33,7 @@ train_data = torch.load(f'data/synthetic/processed/train.pt')
 val_data = torch.load(f'data/synthetic/processed/val.pt')
 
 # %%
-batch_size = 32
+batch_size = 64
 dx, dy = 1, 1
 dc, dw, dh = 3, 64, 64  # image size
 t_steps = 200
@@ -133,6 +133,8 @@ for epoch in range(epochs):
 
         epoch_loss += loss.item()
 
+    epoch_loss /= epoch_iter  # mean loss over the epoch
+    
     training_loss.append(epoch_loss)
 
     if epoch % val_per_epoch == 0:
