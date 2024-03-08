@@ -75,7 +75,7 @@ def get_batch(t: list, traj_ids: list):  # t can be either train_data or val_dat
 
 # %%
 model_ = ConvCNMP().to(device)
-optimizer = torch.optim.Adam(lr=1e-4, params=model_.parameters())
+optimizer = torch.optim.Adam(lr=3e-4, params=model_.parameters())
 
 if torch.__version__ >= "2.0":
     model = torch.compile(model_)
@@ -103,7 +103,7 @@ epochs = 500_000
 epoch_iter = num_train//batch_size  # number of batches per epoch (e.g. 100//32 = 3)
 v_epoch_iter = num_val//batch_size  # number of batches per validation (e.g. 100//32 = 3)
 
-val_per_epoch = 500  # validation frequency
+val_per_epoch = 1000  # validation frequency
 min_val_loss = 1_000_000
 
 mse_loss = torch.nn.MSELoss()
@@ -134,7 +134,7 @@ for epoch in range(epochs):
         epoch_loss += loss.item()
 
     epoch_loss /= epoch_iter  # mean loss over the epoch
-    
+
     training_loss.append(epoch_loss)
 
     if epoch % val_per_epoch == 0:
@@ -149,7 +149,7 @@ for epoch in range(epochs):
                 val_loss += mse_loss(p[:, :, :dy], tr).item()
 
             validation_error.append(val_loss)
-            if val_loss < min_val_loss:
+            if val_loss < min_val_loss and epoch > 5e3:
                 min_val_loss = val_loss
                 print(f'New best: {min_val_loss}')
                 torch.save(model_.state_dict(), f'{root_folder}saved_model/on_synth.pt')
