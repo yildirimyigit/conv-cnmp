@@ -1,6 +1,7 @@
 # Yigit
 raw/
 output/
+out/
 *.pt
 
 # Byte-compiled / optimized / DLL files
