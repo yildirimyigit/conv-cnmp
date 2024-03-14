@@ -3,20 +3,17 @@ from model.conv_cnmp import ConvCNMP
 import torch
 
 
-def get_available_gpu_with_most_memory():
-    gpu_memory = []
+def get_free_gpu():
+    gpu_util = []
     for i in range(torch.cuda.device_count()):
-        torch.cuda.set_device(i)  # Switch to the GPU to accurately measure memory
-#        gpu_memory.append((i, torch.cuda.memory_stats()['reserved_bytes.all.current'] / (1024 ** 2)))
-        gpu_memory.append((i, torch.cuda.memory_snapshot()['allocated_size']))
-
-#    gpu_memory.sort(key=lambda x: x[1], reverse=True)
-    gpu_memory.sort(key=lambda x: x[1])   
-
-    return gpu_memory[0][0]
+        torch.cuda.set_device(i)  # Switch GPU
+#        gpu_util.append((i, torch.cuda.memory_stats()['reserved_bytes.all.current'] / (1024 ** 2)))
+        gpu_util.append((i, torch.cuda.utilization()))
+    gpu_util.sort(key=lambda x: x[1], reverse=True)   
+    return gpu_util[0][0]
 
 if torch.cuda.is_available():
-    available_gpu = get_available_gpu_with_most_memory()
+    available_gpu = get_free_gpu()
     if available_gpu == 0:
         device = torch.device("cuda:0")
     else:
@@ -27,17 +24,16 @@ else:
 print("Device :", device)
 
 # %%
-def load_data(in_folder='raw/train'):
-    data = torch.load(f'{in_folder}_data.pt')
-    return data
+timestamp = '1710407937'
+data_root = f'data/synthetic/processed/{timestamp}'
 
-train_data = torch.load(f'data/synthetic/processed/train.pt')
-val_data = torch.load(f'data/synthetic/processed/val.pt')
+train_data = torch.load(f'{data_root}/train.pt')
+val_data = torch.load(f'{data_root}/val.pt')
 
 # %%
 batch_size = 64
 dx, dy = 1, 1
-dc, dw, dh = 3, 64, 64  # image size
+dc, dw, dh = 3, 32, 32  # image size
 t_steps = 200
 num_train, num_val = len(train_data), len(val_data)
 n_max, m_max = 10, 10
@@ -50,9 +46,9 @@ n_max, m_max = 10, 10
 #   Then pick n random points from t[traj_id]['x'] and t[traj_id]['y'] and concat them to form a tensor of shape (1, n, 2). Store them in obs[traj_id].
 #   Then pick m random ids in [0, t_steps-1]. Pick corresponding x from t[traj_id]['x'] and store them in tar_x[traj_id]. Similarly, store corresponding y from t[traj_id]['y'] in tar_x[traj_id].
 # Return 4 tensors
-def get_batch(t: list, traj_ids: list):  # t can be either train_data or val_data
+def get_batch(t: list, traj_ids: list, val=False):  # t can be either train_data or val_data
     n = torch.randint(1, n_max, (1,)).item()
-    m = torch.randint(1, m_max, (1,)).item()
+    m = torch.randint(1, m_max, (1,)).item() if not val else t_steps
 
     envs = torch.zeros((batch_size, dc, dw, dh), dtype=torch.float32, device=device)
     obs = torch.zeros((batch_size, n, dx+dy), dtype=torch.float32, device=device)
@@ -65,7 +61,7 @@ def get_batch(t: list, traj_ids: list):  # t can be either train_data or val_dat
 
         permuted_ids = torch.randperm(t_steps)
         n_ids = permuted_ids[:n]
-        m_ids = permuted_ids[n:n+m]
+        m_ids = permuted_ids[n:n+m] if not val else permuted_ids
         
         obs[i, :n, :dx] = traj['x'][n_ids]
         obs[i, :n, dx:] = traj['y'][n_ids]
@@ -95,17 +91,17 @@ if not os.path.exists(root_folder):
 if not os.path.exists(f'{root_folder}saved_model/'):
     os.makedirs(f'{root_folder}saved_model/')
 
-if not os.path.exists(f'{root_folder}img/'):
-    os.makedirs(f'{root_folder}img/')
+# if not os.path.exists(f'{root_folder}img/'):
+#     os.makedirs(f'{root_folder}img/')
 
 # torch.save(y, f'{root_folder}y.pt')
 
 
-epochs = 500_000
+epochs = 5_000_000
 epoch_iter = num_train//batch_size  # number of batches per epoch (e.g. 100//32 = 3)
 v_epoch_iter = num_val//batch_size  # number of batches per validation (e.g. 100//32 = 3)
 
-val_per_epoch = 500  # validation frequency
+val_per_epoch = 1000  # validation frequency
 min_val_loss = 1_000_000
 
 mse_loss = torch.nn.MSELoss()
@@ -123,13 +119,9 @@ for epoch in range(epochs):
 
     for i in range(epoch_iter):
         optimizer.zero_grad()
-
-        envs, obs, tar_x, tar_y = get_batch(train_data, traj_ids[i])
-
+        envs, obs, tar_x, tar_y = get_batch(train_data, traj_ids[i], False)
         pred = model(envs, obs, tar_x)
-
         loss = model.loss(pred, tar_y)  # mean loss over the batch
-
         loss.backward()
         optimizer.step()
 
@@ -145,7 +137,7 @@ for epoch in range(epochs):
             val_loss = 0
 
             for j in range(v_epoch_iter):
-                e, o, t, tr = get_batch(val_data, v_traj_ids[j])
+                e, o, t, tr = get_batch(val_data, v_traj_ids[j], True)
 
                 p = model(e, o, t)
                 val_loss += mse_loss(p[:, :, :dy], tr).item()

@@ -68,10 +68,10 @@ r"""
 
     """
 class ConvCNMP(nn.Module):                # input size of default conv1 is 3 because it is (R,G,B)
-    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,64,3,1,0], [64,16,3,1,0]], conv_image_height:int = 64, 
-            conv_image_width: int = 64, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [32,10], 
+    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,64,3,1,0], [64,16,3,1,0]], conv_image_height:int = 32, 
+            conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [32,10], 
             cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256], 
-            cnmp_output_dim: int = 1, cnmp_max_obs: int = 10, cnmp_max_tar: int = 10, batch_size: int = 32):
+            cnmp_output_dim: int = 1, cnmp_max_obs: int = 10, cnmp_max_tar: int = 10, batch_size: int = 64):
         
         # ----------------------------------------------------- PARAMETER CHECKS ----------------------------------------------------- #
         # region parameter checks
