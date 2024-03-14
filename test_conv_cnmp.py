@@ -9,7 +9,7 @@ def get_free_gpu():
         torch.cuda.set_device(i)  # Switch GPU
 #        gpu_util.append((i, torch.cuda.memory_stats()['reserved_bytes.all.current'] / (1024 ** 2)))
         gpu_util.append((i, torch.cuda.utilization()))
-    gpu_util.sort(key=lambda x: x[1], reverse=True)   
+    gpu_util.sort(key=lambda x: x[1])
     return gpu_util[0][0]
 
 if torch.cuda.is_available():
