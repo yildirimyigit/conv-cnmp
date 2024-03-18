@@ -219,7 +219,7 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         # pred: (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
         # real: (batch_size, n_t (<cnmp_max_tar), cnmp_output_dim)
         pred_mean = pred[:, :, :self.cnmp_output_dim]
-        pred_std = torch.nn.functional.softplus(torch.exp(pred[:, :, self.cnmp_output_dim:]))  # predicted value is log_std. In comb. with softplus to ensure positivity
+        pred_std = torch.nn.functional.softplus(pred[:, :, self.cnmp_output_dim:]) + 1e-6 # predicted value is std. In comb. with softplus and minor addition to ensure positivity
 
         pred_dist = torch.distributions.Normal(pred_mean, pred_std)
 
