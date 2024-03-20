@@ -62,10 +62,10 @@ def get_batch(t: list, traj_ids: list, val=False):  # t can be either train_data
         permuted_ids = torch.randperm(t_steps)
         n_ids = permuted_ids[:n]
         m_ids = permuted_ids[n:n+m] if not val else permuted_ids
-        
+
         obs[i, :n, :dx] = traj['x'][n_ids]
         obs[i, :n, dx:] = traj['y'][n_ids]
-        
+
         tar_x[i] = traj['x'][m_ids]
         tar_y[i] = traj['y'][m_ids]
 
@@ -77,7 +77,7 @@ optimizer = torch.optim.Adam(lr=1e-4, params=model_.parameters())
 
 if torch.__version__ >= "2.0":
     model = torch.compile(model_)
-
+print(model_)
 # %%
 import time
 import os
