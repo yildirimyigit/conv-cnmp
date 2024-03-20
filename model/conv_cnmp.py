@@ -21,7 +21,7 @@ r"""
     pool_kernel_stride = ps
     pool_padding = 0
     batch_size = N
-    
+
     ------------------------------------------------------------------------------------------------------------------------------------------
 
     general formula for convolution dimension:
@@ -68,11 +68,11 @@ r"""
 
     """
 class ConvCNMP(nn.Module):                # input size of default conv1 is 3 because it is (R,G,B)
-    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,64,3,1,0], [64,16,3,1,0]], conv_image_height:int = 32, 
-            conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [32,10], 
-            cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256], 
+    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,128,3,1,0], [128,64,3,1,0], [64,32,3,1,0]], conv_image_height:int = 32,
+            conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [32, 32],
+            cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256],
             cnmp_output_dim: int = 1, cnmp_max_obs: int = 10, cnmp_max_tar: int = 10, batch_size: int = 64):
-        
+
         # ----------------------------------------------------- PARAMETER CHECKS ----------------------------------------------------- #
         # region parameter checks
         if len(conv_layers) <= 0:
@@ -156,7 +156,7 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         self.cnmp_output_dim = cnmp_output_dim
         self.cnmp_max_obs = cnmp_max_obs
         self.cnmp_max_tar = cnmp_max_tar
-        
+
         self.batch_size = batch_size
 
         conv_sequence = []
@@ -167,10 +167,13 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
             conv_sequence.append(nn.Conv2d(*conv_layers[i]))
             conv_sequence.append(nn.ReLU())
             if i < self.conv_num_layers-1:
-                dimension = [conv_layers[i][1], (dimension[1] - pool_kernel_size) // pool_stride + 1,
-                                                (dimension[2] - pool_kernel_size) // pool_stride + 1]
+#                dimension = [conv_layers[i][1], (dimension[1] - pool_kernel_size) // pool_stride + 1,
+#                                                (dimension[2] - pool_kernel_size) // pool_stride + 1]
+                dimension = [conv_layers[i+1][0], (dimension[1] - pool_kernel_size) // pool_stride + 1,
+                    (dimension[2] - pool_kernel_size) // pool_stride + 1]
+
                 conv_sequence.append(nn.MaxPool2d(pool_kernel_size, pool_stride))
-        
+
         dimension = dimension[0] * dimension[1] * dimension[2]
         conv_sequence.append(nn.Flatten(1))
 
@@ -204,14 +207,14 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         conv_result_rep = conv_result.unsqueeze(1).repeat(1, cnmp_obs.shape[1], 1)  # conv_result is repeated to match cnmp_obs. we append same conv_result to each cnmp_obs
 
         total_obs = torch.cat((cnmp_obs, conv_result_rep), dim=-1)
-        
+
         # cnmp_obs: (batch_size, n_o (<cnmp_max_obs), input_dim+output_dim)
         # cnmp_tar: (batch_size, n_t (<cnmp_max_tar), input_dim)
         encoded_obs = self.encoder(total_obs) # (batch_size, n_o (<cnmp_max_obs), cnmp_encoder_hidden_dims[-1])
         encoded_rep = encoded_obs.mean(dim=1).unsqueeze(1) # (batch_size, 1, cnmp_encoder_hidden_dims[-1])
         repeated_encoded_rep = torch.repeat_interleave(encoded_rep, cnmp_tar.shape[1], dim=1)  # each encoded_rep is repeated to match cnmp_tar
         rep_tar = torch.cat([repeated_encoded_rep, cnmp_tar], dim=-1)
-        
+
         pred = self.decoder(rep_tar)  # (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
         return pred
 
@@ -224,4 +227,4 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         pred_dist = torch.distributions.Normal(pred_mean, pred_std)
 
         return (-pred_dist.log_prob(real)).mean()
-    
+
