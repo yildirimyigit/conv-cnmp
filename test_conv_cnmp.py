@@ -2,7 +2,7 @@
 from model.conv_cnmp import ConvCNMP
 import torch
 
-torch.set_float32_matmul_precision('high')
+
 def get_free_gpu():
     gpu_util = []
     for i in range(torch.cuda.device_count()):
@@ -62,17 +62,17 @@ def get_batch(t: list, traj_ids: list, val=False):  # t can be either train_data
         permuted_ids = torch.randperm(t_steps)
         n_ids = permuted_ids[:n]
         m_ids = permuted_ids[n:n+m] if not val else permuted_ids
-
+        
         obs[i, :n, :dx] = traj['x'][n_ids]
         obs[i, :n, dx:] = traj['y'][n_ids]
-
+        
         tar_x[i] = traj['x'][m_ids]
         tar_y[i] = traj['y'][m_ids]
 
     return envs, obs, tar_x, tar_y
 
 # %%
-model_ = ConvCNMP().to(device)
+model_ = ConvCNMP(linear_output_sizes=[512]).to(device)
 optimizer = torch.optim.Adam(lr=1e-4, params=model_.parameters())
 
 if torch.__version__ >= "2.0":
@@ -128,7 +128,7 @@ for epoch in range(epochs):
         epoch_loss += loss.item()
 
     epoch_loss /= epoch_iter  # mean loss over the epoch
-
+    
     training_loss.append(epoch_loss)
 
     if epoch % val_per_epoch == 0:

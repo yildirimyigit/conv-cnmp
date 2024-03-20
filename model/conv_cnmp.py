@@ -68,8 +68,8 @@ r"""
 
     """
 class ConvCNMP(nn.Module):                # input size of default conv1 is 3 because it is (R,G,B)
-    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,128,3,1,0], [128,64,3,1,0], [64,32,3,1,0]], conv_image_height:int = 32,
-            conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [32, 32],
+    def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,128,3,1,0], [128,64,3,1,0]], conv_image_height:int = 32,
+            conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [128],
             cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256],
             cnmp_output_dim: int = 1, cnmp_max_obs: int = 10, cnmp_max_tar: int = 10, batch_size: int = 64):
 
@@ -160,31 +160,37 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         self.batch_size = batch_size
 
         conv_sequence = []
-        dimension = [conv_layers[0][0], conv_image_height, conv_image_width]
+        dimension = [conv_layers[0][0], conv_image_height, conv_image_width]  # used as helper to calculate next layer's dimension
         for i in range(self.conv_num_layers):
             dimension = [conv_layers[i][1], (dimension[1] - conv_layers[i][2] + 2*conv_layers[i][4]) // conv_layers[i][3] + 1, 
                                             (dimension[2] - conv_layers[i][2] + 2*conv_layers[i][4]) // conv_layers[i][3] + 1]
             conv_sequence.append(nn.Conv2d(*conv_layers[i]))
             conv_sequence.append(nn.ReLU())
             if i < self.conv_num_layers-1:
-#                dimension = [conv_layers[i][1], (dimension[1] - pool_kernel_size) // pool_stride + 1,
-#                                                (dimension[2] - pool_kernel_size) // pool_stride + 1]
-                dimension = [conv_layers[i+1][0], (dimension[1] - pool_kernel_size) // pool_stride + 1,
+                conv_sequence.append(nn.MaxPool2d(pool_kernel_size, pool_stride))
+                dimension = [conv_layers[i][1], (dimension[1] - pool_kernel_size) // pool_stride + 1,
                     (dimension[2] - pool_kernel_size) // pool_stride + 1]
 
-                conv_sequence.append(nn.MaxPool2d(pool_kernel_size, pool_stride))
+                # conv_sequence.append(nn.MaxPool2d(pool_kernel_size, pool_stride))
 
         dimension = dimension[0] * dimension[1] * dimension[2]
-        conv_sequence.append(nn.Flatten(1))
+        # conv_sequence.append(nn.Flatten(1))  # why 1?
+        conv_sequence.append(nn.Flatten())
 
-        for i in range(self.num_linear_layers-1):
-            conv_sequence.append(nn.Linear(dimension, linear_output_sizes[i]))
-            conv_sequence.append(nn.ReLU())
-        conv_sequence.append(nn.Linear(linear_output_sizes[-2], linear_output_sizes[-1]))
+        if self.num_linear_layers > 1:
+            for i in range(self.num_linear_layers-1):
+                conv_sequence.append(nn.Linear(dimension, linear_output_sizes[i]))
+                conv_sequence.append(nn.ReLU())
+                dimension = linear_output_sizes[i]
+
+            last_dim = linear_output_sizes[-2]
+        else:
+            last_dim = dimension
+        conv_sequence.append(nn.Linear(last_dim, linear_output_sizes[-1]))
         self.conv = nn.Sequential(*conv_sequence)
 
         encoder_sequence = []
-        for i in range(self.cnmp_encoder_num_layers-1):
+        for i in range(self.cnmp_encoder_num_layers):
             if i == 0:
                 encoder_sequence.append(nn.Linear(linear_output_sizes[-1] + cnmp_input_dim + cnmp_output_dim, cnmp_encoder_hidden_dims[0]))
             else:
