@@ -70,7 +70,7 @@ r"""
 class ConvCNMP(nn.Module):                # input size of default conv1 is 3 because it is (R,G,B)
     def __init__(self, conv_layers: list = [[3,256,3,1,0], [256,128,3,1,0], [128,64,3,1,0]], conv_image_height:int = 32,
             conv_image_width: int = 32, pool_kernel_size: int = 2, pool_stride: int = 2, linear_output_sizes: list = [128],
-            cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256],
+            cnmp_input_dim: int = 1, cnmp_encoder_hidden_dims: list = [256,256,256,256], cnmp_decoder_hidden_dims: list = [256,256,256,256],
             cnmp_output_dim: int = 1, cnmp_max_obs: int = 10, cnmp_max_tar: int = 10, batch_size: int = 64):
 
         # ----------------------------------------------------- PARAMETER CHECKS ----------------------------------------------------- #
@@ -208,14 +208,14 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         self.decoder = nn.Sequential(*decoder_sequence)
 
     def forward(self, conv_obs, cnmp_obs, cnmp_tar):
-        # conv_obs: (batch_size, 3, 64, 64)
+        # conv_obs: (batch_size, 3, h, w)
+        # cnmp_obs: (batch_size, cnmp_max_obs, input_dim+output_dim)
+        # cnmp_tar: (batch_size, cnmp_max_tar, input_dim)
         conv_result = self.conv(conv_obs) # (batch_size, linear_output_sizes[-1])
         conv_result_rep = conv_result.unsqueeze(1).repeat(1, cnmp_obs.shape[1], 1)  # conv_result is repeated to match cnmp_obs. we append same conv_result to each cnmp_obs
 
         total_obs = torch.cat((cnmp_obs, conv_result_rep), dim=-1)
 
-        # cnmp_obs: (batch_size, n_o (<cnmp_max_obs), input_dim+output_dim)
-        # cnmp_tar: (batch_size, n_t (<cnmp_max_tar), input_dim)
         encoded_obs = self.encoder(total_obs) # (batch_size, n_o (<cnmp_max_obs), cnmp_encoder_hidden_dims[-1])
         encoded_rep = encoded_obs.mean(dim=1).unsqueeze(1) # (batch_size, 1, cnmp_encoder_hidden_dims[-1])
         repeated_encoded_rep = torch.repeat_interleave(encoded_rep, cnmp_tar.shape[1], dim=1)  # each encoded_rep is repeated to match cnmp_tar
@@ -224,13 +224,23 @@ class ConvCNMP(nn.Module):                # input size of default conv1 is 3 bec
         pred = self.decoder(rep_tar)  # (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
         return pred
 
-    def loss(self, pred, real):
-        # pred: (batch_size, n_t (<cnmp_max_tar), 2*cnmp_output_dim)
-        # real: (batch_size, n_t (<cnmp_max_tar), cnmp_output_dim)
+    def loss(self, pred, real, mask):
+        # pred: (batch_size, cnmp_max_tar, 2*cnmp_output_dim)
+        # real: (batch_size, cnmp_max_tar, cnmp_output_dim)
+        # mask: (batch_size, cnmp_max_tar)  # boolean mask
+        
         pred_mean = pred[:, :, :self.cnmp_output_dim]
         pred_std = torch.nn.functional.softplus(pred[:, :, self.cnmp_output_dim:]) + 1e-6 # predicted value is std. In comb. with softplus and minor addition to ensure positivity
 
-        pred_dist = torch.distributions.Normal(pred_mean, pred_std)
+        t_mask = ~mask.unsqueeze(-1)
+        masked_pred_mean = pred_mean.masked_fill(t_mask, 0.0)
+        masked_pred_std = pred_std.masked_fill(t_mask, 1.0)
 
-        return (-pred_dist.log_prob(real)).mean()
+        masked_pred_dist = torch.distributions.Normal(masked_pred_mean, masked_pred_std)
+
+        masked_real = real.masked_fill(t_mask, 0.0)
+        nll = -masked_pred_dist.log_prob(masked_real)
+        masked_nll = torch.masked_select(nll, ~t_mask)  # log_prob(0) under unit normal distribution is 0 affecting mean() calculation, so we need to exclude them
+
+        return masked_nll.mean()
 
