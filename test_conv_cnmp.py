@@ -139,6 +139,8 @@ optimizer = torch.optim.Adam(lr=1e-4, params=model_.parameters())
 if torch.__version__ >= "2.0":
     model = torch.compile(model_)
 
+print(model_)
+
 # %%
 import time
 import os
