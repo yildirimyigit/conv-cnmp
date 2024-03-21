@@ -203,7 +203,7 @@ for epoch in range(epochs):
                 val_loss += mse_loss(p[:, :, :dy], val_tar_y).item()
 
             validation_error.append(val_loss)
-            if val_loss < min_val_loss and epoch > 1:
+            if val_loss < min_val_loss and epoch > 1e3:
                 min_val_loss = val_loss
                 print(f'New best: {min_val_loss}')
                 torch.save(model.state_dict(), f'{root_folder}saved_model/on_synth.pt')
