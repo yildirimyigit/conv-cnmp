@@ -2,8 +2,10 @@
 raw/
 output/
 out/
+external/
 *.pt
 *.zip
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
